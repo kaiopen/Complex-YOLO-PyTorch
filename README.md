@@ -2,7 +2,7 @@
 An unofficial implementation of [Complex-YOLO: An Euler-Region-Proposal for Real-time 3D Object Detection on Point Clouds](https://arxiv.org/abs/1803.06199) based on [AI-liu/Complex-YOLO](https://github.com/AI-liu/Complex-YOLO) and [Yuanchu/YOLO3D](https://github.com/Yuanchu/YOLO3D).
 
 ## Data
-The tree of datasets directory is as follows.
+Create a directory call `datasets` at root of the project. The tree of datasets directory is as follows.
 
  Kitti<br>
  ├── training<br>
