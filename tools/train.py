@@ -7,6 +7,9 @@
 
 '''
 
+import time
+import os
+
 import torch
 from torch.utils.data import DataLoader
 from torch import optim
@@ -16,7 +19,6 @@ from bev_detection.data.datasets.kitti.bev_kitti import BEVKitti
 from bev_detection.models.complex_yolo import ComplexYOLO
 from bev_detection.utils.region_loss import RegionLoss
 from bev_detection.config import cfg
-from tools.evaluate import evaluate
 
 
 def update_cfg():
@@ -25,36 +27,9 @@ def update_cfg():
 
     parser = argparse.ArgumentParser(description='Training Complex-YOLO.')
 
-    # Parameters for precessing and dataset
-    # parser.add_argument(
-    #     "--dataset", type=str, choices=["Kitti"],
-    #     help="Dataset. `Kitti` is available. Default is `Kitti`.")
-
-    # Parameters for dataloader
-    parser.add_argument(
-        "--batch_size", type=int, default=12,
-        help='Batch size. Default is `12`.')
-
-    # Parameters for training
-    # parser.add_argument(
-    #     '--n_epochs', type=int, default=1000,
-    #     help='The number of epochs. Default is `1000`.')
-    # parser.add_argument(
-    #     "--initial_lr", type=float, default=1e-5,
-    #     help="Initial learning rate. Default is `1e-5`.")
-    # parser.add_argument(
-    #     "--momentum", type=float, default=0.9,
-    #     help="Momentum coefficient. Default is `0.9`.")
-    # parser.add_argument(
-    #     "--weight_decay", type=float, default=0.0005,
-    #     help="Weight decay coefficient. Default is `0.0005`.")
-
     parser.add_argument(
         "--use_cuda", action="store_true", default=False,
         help="Whether to use CUDA. Default is `False`.")
-    parser.add_argument(
-        "--num_workers", type=int, default=8,
-        help="The number of workers/processes to loader data. Default is `8`.")
     parser.add_argument(
         "--pin_memory", action="store_true", default=False,
         help="Whether to use pinned memory. Default is `False`.")
@@ -65,34 +40,61 @@ def update_cfg():
 
     if torch.cuda.is_available():
         if not args.use_cuda:
-            warnings.warn(
-                "CUDA devices are available. " +
-                "It is recommended to run with `--use_cuda`.")
+            warning_str = "CUDA devices are available. " + \
+                "It is recommended to run with `--use_cuda`."
+            warnings.warn(warning_str)
     elif args.use_cuda:
         warnings.warn(
             "CUDA devices are excepted but not available. CPU will be used.")
         args.use_cuda = False
     kwargs["device"] = torch.device("cuda" if args.use_cuda else "cpu")
+    kwargs["split"] = "train"
 
     cfg.update(vars(args), kwargs)
+
+
+def filter_dataset():
+    '''Filter dataset according to active class.
+
+    A new split file named `active_train.txt` will be generated.
+
+    '''
+    active_split_dir = os.path.join(cfg.get_datasets_cache_root(), "Kitti")
+    if not os.path.exists(os.path.dirname(active_split_dir)):
+        os.makedirs(active_split_dir)
+    active_split_path = os.path.join(active_split_dir, "active_train.txt")
+
+    dataset = BEVKitti()
+    ids = dataset.get_ids()
+
+    active_ids = []
+    active_clss = cfg.get_active_cls_str()
+
+    for idx in ids:
+        objs = dataset.get_objs(idx)
+        for obj in objs:
+            if obj.get_cls_str() in active_clss:
+                active_ids.append("{:0>6}\n".format(idx))
+                break
+    active_ids[-1] = active_ids[-1][: -1]
+    with open(active_split_path, 'w') as f:
+        f.writelines(active_ids)
+
+    kwargs = {"split": "active_train"}
+    cfg.update(kwargs)
 
 
 if __name__ == "__main__":
     update_cfg()
 
-    train_dataset = BEVKitti("train")
-    val_dataset = BEVKitti("val")
+    filter_dataset()
 
-    train_loader = DataLoader(
-        dataset=train_dataset,
+    dataset = BEVKitti()
+
+    loader = DataLoader(
+        dataset=dataset,
         batch_size=cfg.get_batch_size(),
         shuffle=True,
-        num_workers=cfg.get_num_workers(),
-        pin_memory=cfg.get_pin_memory())
-
-    val_loader = DataLoader(
-        dataset=val_dataset,
-        batch_size=cfg.get_batch_size(),
         num_workers=cfg.get_num_workers(),
         pin_memory=cfg.get_pin_memory())
 
@@ -104,9 +106,8 @@ if __name__ == "__main__":
         weight_decay=cfg.get_weight_decay())
     region_loss = RegionLoss()
 
-    dataset_size = len(train_dataset)
-    val_dataset_size = len(val_dataset)
-    for epoch in range(1, cfg.get_n_epochs() + 1):
+    dataset_size = len(dataset)
+    for epoch in range(cfg.get_n_epochs()):
         for group in optimizer.param_groups:
             if epoch >= 4 and epoch < 80:
                 group["lr"] = 1e-4
@@ -117,33 +118,29 @@ if __name__ == "__main__":
 
         model.train()
         n_trained = 0
-        cumul_n_gt = 0
-        cumul_n_correct = 0
-        for b, (bevs, targets) in enumerate(train_loader):
+        total_loss = 0
+        start_time = time.time()
+        for b, (bevs, targets) in enumerate(loader):
             n_trained += bevs.size(0)
 
             optimizer.zero_grad()
             bevs = bevs.to(cfg.get_device())
-            targets = targets.to(cfg.get_device())
+            # targets = targets.to(cfg.get_device())
             output = model(bevs)
-            loss, statistics = region_loss(output, targets)
+            loss = region_loss(output, targets)
             loss.backward()
             optimizer.step()
 
-            n_gt = statistics["n_gt"]
-            n_correct = statistics["n_correct"]
-            cumul_n_gt += n_gt
-            cumul_n_correct += n_correct
-            if (b + 1) % 10 == 0:
+            total_loss += loss.item()
+
+            if b % 10 == 0:
                 print("Train epoch {} [{}/{} {:.2f}%]\tLoss: {:.3f}".format(
                     epoch, n_trained, dataset_size,
                     100. * n_trained/dataset_size, loss.item()))
-        accuracy = float(cumul_n_correct / cumul_n_gt) if n_gt else 1
-        print("Train epoch {}\tAccuracy: {:.3f}.".format(epoch, accuracy))
-        print("\n")
 
-        evaluate(model, val_loader, region_loss, val_dataset_size, epoch)
-        print("\n")
+        end_time = time.time()
+        print("Train epoch {}\tAverage Loss: {:.3f}\tTime: {:.3f}s.".format(
+            epoch, total_loss / len(loader), end_time-start_time))
 
-        if epoch % 50 == 0:
-            model.save()
+        if epoch % 10 == 0:
+            model.save(epoch=epoch)

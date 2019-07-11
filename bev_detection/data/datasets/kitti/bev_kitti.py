@@ -25,8 +25,8 @@ class BEVKitti(BasicKitti):
     __bev_objs_path = os.path.join(
         cfg.get_datasets_cache_root(), "Kitti/bev_objs/{:0>6}.bin")
 
-    def __init__(self, split):
-        super(BEVKitti, self).__init__(split)
+    def __init__(self):
+        super(BEVKitti, self).__init__()
 
     def __getitem__(self, i):
         idx = self._ids[i]
@@ -68,10 +68,11 @@ class BEVKitti(BasicKitti):
         target = np.zeros((24, 7), dtype=np.float32)
         objs = cls.get_objs(idx)
         calib = cls.get_calib(idx)
+        active_cls_str = cfg.get_active_cls_str()
         i = 0
         for obj in objs:
-            cls_id = obj.get_cls_id()
-            if cls_id in (0, 8, 9) or obj.get_level() not in (1, 2, 3):
+            if obj.get_cls_str() != active_cls_str or \
+                    obj.get_level() not in (1, 2, 3):
                 continue
 
             obj_pos = obj.get_obj_pos()
@@ -81,7 +82,7 @@ class BEVKitti(BasicKitti):
 
             if center_x >= min_x and center_x < max_x and \
                     center_y >= min_y and center_y < max_y:
-                target[i, 0] = cls_id
+                target[i, 0] = obj.get_cls_id()
 
                 target[i, 1] = center_x / height
                 target[i, 2] = (center_y + width / 2) / width

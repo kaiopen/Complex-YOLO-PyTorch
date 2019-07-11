@@ -8,12 +8,12 @@
 '''
 
 import os
-import pickle
 from PIL import Image
 
 import numpy as np
 from torch.utils.data import Dataset
 
+from bev_detection.utils.utils import cls_str2id
 from bev_detection.config import cfg
 
 
@@ -28,9 +28,14 @@ class BasicKitti(Dataset):
     __label_path = os.path.join(__dataset_root, "training/label_2/{:0>6}.txt")
     __plane_path = os.path.join(__dataset_root, "training/planes/{:0>6}.txt")
 
-    def __init__(self, split):
+    def __init__(self):
         super(BasicKitti, self).__init__()
-        split_path = os.path.join(self.__dataset_root, split + ".txt")
+        split = cfg.get_split()
+        if split in ("train", "val", "trainval"):
+            split_path = os.path.join(self.__dataset_root, split + ".txt")
+        else:
+            split_path = os.path.join(
+                cfg.get_datasets_cache_root(), "Kitti", split + ".txt")
         with open(split_path, 'r') as f:
             self._ids = [int(idx.strip()) for idx in f.readlines()]
 
@@ -274,18 +279,11 @@ class Calib(object):
 
 
 class Obj(object):
-    __clss_str = (
-        "__background__",
-        "Car", "Van", "Truck",
-        "Tram",
-        "Pedestrian", "Person_sitting", "Cyclist",
-        "Misc", "DontCare")
-
     def __init__(self, label):
         super(Obj, self).__init__()
         info = label.strip().split()
         self.__cls_str = info[0]
-        self.__cls_id = self.__clss_str.index(self.__cls_str)
+        self.__cls_id = cls_str2id(self.__cls_str)
         self.__alpha = float(info[3])
         self.__bbox_2d = np.array(  # in camera 2 coordinate
             [float(info[i]) for i in range(4, 8)], dtype=np.float32)

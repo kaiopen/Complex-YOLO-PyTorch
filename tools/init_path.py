@@ -7,7 +7,8 @@
 
 '''
 
-import os, sys
+import os
+import sys
 
 BASICPATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASICPATH)

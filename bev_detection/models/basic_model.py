@@ -18,8 +18,6 @@ from bev_detection.config import cfg
 
 
 class BasicModule(nn.Module):
-    __checkpoints_dir = cfg.get_checkpoints_root()
-
     def __init__(self):
         super(BasicModule, self).__init__()
         self.__model_name = self.__class__.__name__
@@ -32,23 +30,18 @@ class BasicModule(nn.Module):
         elif fname.split('.')[-1] != ".pth":
             fname = fname + ".pth"
 
-        checkpoint_path = os.path.join(self.__checkpoints_dir, fname)
+        checkpoint_path = os.path.join(cfg.get_checkpoints_root(), fname)
         if cfg.get_device().type == "cpu":
             self.load_state_dict(
                 torch.load(checkpoint_path, map_location="cpu"))
         else:
             self.load_state_dict(torch.load(checkpoint_path))
 
+    def save(self, epoch):
+        checkpoints_dir = cfg.get_checkpoints_root()
+        if not os.path.exists(checkpoints_dir):
+            os.makedirs(checkpoints_dir)
 
-
-    def save(self, fname=None):
-        if not os.path.exists(self.__checkpoints_dir):
-            os.makedirs(self.__checkpoints_dir)
-
-        if fname is None:
-            fname = time.strftime(self.__model_name + "_%Y%m%d%H%M%S.pth")
-        elif fname.split('.')[-1] != ".pth":
-            fname = fname + ".pth"
-
-        checkpoint_path = os.path.join(self.__checkpoints_dir, fname)
+        fname = self.__model_name + "_" + str(epoch) + ".pth"
+        checkpoint_path = os.path.join(checkpoints_dir, fname)
         torch.save(self.state_dict(), checkpoint_path)

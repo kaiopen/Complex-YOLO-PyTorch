@@ -8,22 +8,20 @@
 '''
 
 import matplotlib.pyplot as plt
-
 import torch
 
 import init_path
 from bev_detection.data.datasets.kitti.bev_kitti import BEVKitti
 from bev_detection.models.complex_yolo import ComplexYOLO
-from bev_detection.utils.region_loss import get_fmap_prediction
 from bev_detection.config import cfg
-from tools.show_bev import draw_box
+from tools.utils import get_prediction_bev, draw_box
 
 
 def update_cfg():
     import argparse
     import warnings
 
-    parser = argparse.ArgumentParser(description='Training Complex-YOLO.')
+    parser = argparse.ArgumentParser(description='Testing Complex-YOLO.')
 
     parser.add_argument(
         "--use_cuda", action="store_true", default=False,
@@ -45,15 +43,6 @@ def update_cfg():
     kwargs["split"] = "val"
 
     cfg.update(vars(args), kwargs)
-
-
-def get_preds(fmap_preds, fmap_size):
-    fmap_H, fmap_W = fmap_size
-    fmap_preds[..., 0] = fmap_preds[..., 0] / fmap_H
-    fmap_preds[..., 1] = fmap_preds[..., 1] / fmap_W
-    fmap_preds[..., 2] = fmap_preds[..., 2] / fmap_H
-    fmap_preds[..., 3] = fmap_preds[..., 3] / fmap_W
-    return fmap_preds
 
 
 def show_result(bev, preds, target):
@@ -86,14 +75,13 @@ if __name__ == "__main__":
         bev = bev.to(device)
         output = model(bev)
 
-        fmap_preds = get_fmap_prediction(output)
-        fmap_preds = fmap_preds[fmap_preds[..., 6] > cfg.get_conf_threshold()]
-        preds = get_preds(
-            fmap_preds, (output.size(2), output.size(3)))
         bev = bev.squeeze(0)
         bev = bev.cpu().detach().numpy()
-        preds = preds.cpu().detach().numpy()
         target = target.cpu().detach().numpy()
-        show_result(bev, preds, target)
+
+        prediction_bev = get_prediction_bev(output, bev.shape[1, 2])
+        prediction_bev = prediction_bev.cpu().detach().numpy()
+
+        show_result(bev, prediction_bev, target)
         if (i + 1) % 10 == 0:
             plt.close("all")

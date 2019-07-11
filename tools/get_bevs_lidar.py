@@ -105,7 +105,10 @@ def generate_BEV(pts_lidar):
 if __name__ == "__main__":
     datasets_cache_root = cfg.get_datasets_cache_root()
 
-    dataset = BasicKitti(split="trainval")
+    kwargs = {"split": "trainval"}
+    cfg.update(kwargs)
+
+    dataset = BasicKitti()
 
     ids = dataset.get_ids()
 

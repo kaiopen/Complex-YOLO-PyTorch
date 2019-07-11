@@ -1,5 +1,9 @@
 # Complex-YOLO
-An unofficial implementation of [Complex-YOLO: An Euler-Region-Proposal for Real-time 3D Object Detection on Point Clouds](https://arxiv.org/abs/1803.06199) based on [AI-liu/Complex-YOLO](https://github.com/AI-liu/Complex-YOLO) and [Yuanchu/YOLO3D](https://github.com/Yuanchu/YOLO3D).
+An unofficial implementation of [Complex-YOLO: An Euler-Region-Proposal for Real-time 3D Object Detection on Point Clouds](https://arxiv.org/abs/1803.06199) based on [AI-liu/ Complex-YOLO](https://github.com/AI-liu/Complex-YOLO) and [Yuanchu/YOLO3D](https://github.com/Yuanchu/YOLO3D).
+
+## Log
+* <b>June 12, 2019</b> The first commit. Training and showing results are provided.
+* <b>July 11, 2019</b> Training according to special class and evaluating with KITTI native evaluating codes are available. Fix some bugs, too.
 
 ## Data
 Create a directory call `datasets` at root of the project. The tree of datasets directory is as follows.
